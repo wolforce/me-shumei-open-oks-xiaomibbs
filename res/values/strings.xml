@@ -13,7 +13,7 @@
     <string name="cfg_author">家前李树</string>
     
     <!-- “添加任务”的弹出窗口上显示的说明信息，提示用户怎么使用此插件 -->
-    <string name="cfg_info">本插件属于收费插件，需要下载推荐软件获取点券激活\n\n适用于小米手机BBS每日打卡签到</string>
+    <string name="cfg_info">适用于小米手机BBS每日打卡签到</string>
     
     <!--
     在“添加任务”的弹出窗口上显示的“配置”界面类型
