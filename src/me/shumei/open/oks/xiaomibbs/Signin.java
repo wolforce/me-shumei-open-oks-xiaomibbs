@@ -44,7 +44,7 @@ public class Signin extends CommonData {
             Response res;
             
             //登录通行证的URL
-            String loginPassportUrl = "https://account.xiaomi.com/pass/serviceLoginAuth";
+            String loginPassportUrl = "https://account.xiaomi.com/pass/serviceLoginAuth2";
             //登录BBS的URL
             String loginBBSUrl = "http://bbs.xiaomi.cn/member.php?mod=logging&action=login&mobile=yes";
             //签到页面的URL
