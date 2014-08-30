@@ -2,6 +2,8 @@ package me.shumei.open.oks.xiaomibbs;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.json.JSONObject;
 import org.jsoup.Connection.Method;
@@ -43,6 +45,8 @@ public class Signin extends CommonData {
             //Jsoup的Response
             Response res;
             
+            //登录通行证的页面URL
+            String loginPageUrl = "https://account.xiaomi.com/pass/serviceLogin";
             //登录通行证的URL
             String loginPassportUrl = "https://account.xiaomi.com/pass/serviceLoginAuth2";
             //登录BBS的URL
@@ -54,9 +58,41 @@ public class Signin extends CommonData {
             //提交签到信息的URL
             String signSubmitUrl = "http://bbs.xiaomi.cn/qiandao/index/share";
             
-            //登录小米通行证账号
-            res = Jsoup.connect(loginPassportUrl).data("user", user).data("pwd", pwd).data("sid", "passport").userAgent(UA_ANDROID).timeout(TIME_OUT).ignoreContentType(true).method(Method.POST).execute();
+            //访问登录页面，获取必要的登录信息
+            res = Jsoup.connect(loginPageUrl).userAgent(UA_ANDROID).timeout(TIME_OUT).ignoreContentType(true).method(Method.GET).execute();
             cookies.putAll(res.cookies());
+            
+            String oriStr = res.body();
+            String callback = "https://account.xiaomi.com";
+            String sid = getStrWithRegx("sid *: *\"(.+)\"", oriStr);
+            String qs = getStrWithRegx("qs *: *\"(.+)\"", oriStr);
+            String hidden = "";
+            String _sign = getStrWithRegx("_sign\" *: *\"(.+)\"", oriStr);
+            String serviceParam = "{\"checkSafePhone\":false}";
+            
+            HashMap<String, String> postDatas = new HashMap<String, String>();
+            postDatas.put("user", user);
+            postDatas.put("_json", "true");
+            postDatas.put("pwd", pwd);
+            postDatas.put("callback", callback);
+            postDatas.put("sid", sid);
+            postDatas.put("qs", qs);
+            postDatas.put("hidden", hidden);
+            postDatas.put("_sign", _sign);
+            postDatas.put("serviceParam", serviceParam);
+            
+            //登录小米通行证账号
+            //&&&START&&&{"desc":"签名值不合法","location":null,"captchaUrl":null,"code":21310}
+            //&&&START&&&{"sid":"passport","desc":"登录验证失败","location":null,"captchaUrl":null,"callback":"https://account.xiaomi.com","code":70016,"qs":"%3Fsid%3Dpassport","_sign":"44rewwer45+ewre45reXg="}
+            //&&&START&&&{"passToken":"Aq3FBlXT8808jz9YNmskY6J+fZBo=","securityStatus":0,"ssecurity":"3DjO/S4Qi9dP9123456nQ==","desc":"成功","nonce":51456452015364,"location":"https://account.xiaomi.com/sts?sid=qwertdx12345646","userId":13465120,"captchaUrl":null,"psecurity":"96Py/54q6we5r12sda==","code":0,"qs":"%3Fsid%3Dpassport","notificationUrl":""}
+            res = Jsoup.connect(loginPassportUrl).data(postDatas).userAgent(UA_ANDROID).timeout(TIME_OUT).ignoreContentType(true).method(Method.POST).execute();
+            cookies.putAll(res.cookies());
+            System.out.println(res.body());
+            
+            JSONObject jsonObj = new JSONObject(res.body().replace("&&&START&&&", ""));
+            int code_no = jsonObj.optInt("code");
+            String desc = jsonObj.optString("desc");
+            if (code_no != 0) return new String[]{"false", desc};
             
             //如果页面中有“忘记密码”字符串，说明登录失败
             if(res.body().contains("忘记密码"))
@@ -85,24 +121,24 @@ public class Signin extends CommonData {
                 
                 //向电脑版网页提交签到信息
                 res = Jsoup.connect(signSubmitUrl).data("text", logoStr).cookies(cookies).userAgent(UA_CHROME).timeout(TIME_OUT).ignoreContentType(true).method(Method.POST).execute();
-                JSONObject jsonObj = new JSONObject(res.body());
-                String code = jsonObj.getString("code");
+                jsonObj = new JSONObject(res.body());
+                String code = jsonObj.optString("code");
                 if (code.equals("200")) {
                     JSONObject userObj = jsonObj.getJSONObject("user");
                     this.resultFlag = "true";
                     StringBuilder sb = new StringBuilder();
-                    sb.append(userObj.getString("name") + ",签到成功\n");
-                    sb.append("连续签到：" + userObj.getString("days") + "\n");
-                    sb.append("签到等级：" + userObj.getString("level") + "\n");
-                    sb.append("获得奖励：" + userObj.getString("lastreward") + "\n");
-                    sb.append("积分奖励：" + userObj.getString("reward") + "\n");
-                    sb.append("签到排名：" + userObj.getString("sort") + "\n");
-                    sb.append("总天数：" + userObj.getString("tdays") + "\n");
+                    sb.append(userObj.optString("name") + ",签到成功\n");
+                    sb.append("连续签到：" + userObj.optString("days") + "\n");
+                    sb.append("签到等级：" + userObj.optString("level") + "\n");
+                    sb.append("获得奖励：" + userObj.optString("lastreward") + "\n");
+                    sb.append("积分奖励：" + userObj.optString("reward") + "\n");
+                    sb.append("签到排名：" + userObj.optString("sort") + "\n");
+                    sb.append("总天数：" + userObj.optString("tdays") + "\n");
                     
                     //中奖
-                    if (jsonObj.getString("data").length() > 0) {
+                    if (jsonObj.optString("data").length() > 0) {
                         sb.append("签到中奖！中奖信息：\n" );
-                        sb.append(jsonObj.getString("data"));
+                        sb.append(jsonObj.optString("data"));
                     }
                     
                     this.resultStr = sb.toString();
@@ -141,6 +177,21 @@ public class Signin extends CommonData {
         }
         
         return new String[]{resultFlag, resultStr};
+    }
+    
+    
+    /**
+     * 根据传入的正则规则和字符串查找第一个符合条件的值
+     * @param pattStr 正则表达式规则
+     * @param oriStr 原始文本
+     * @return 返回第一个符合条件的值，如果没有符合条件的值，就会回一个长度为0的字符串
+     */
+    private String getStrWithRegx(String pattStr, String oriStr) {
+        Pattern pattern = Pattern.compile(pattStr);
+        Matcher matcher = pattern.matcher(oriStr);
+        String str = "";
+        if (matcher.find()) str = matcher.group(1);
+        return str;
     }
     
     
